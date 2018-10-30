@@ -1,0 +1,953 @@
+module alu_test (
+    input clk,
+    input rst,
+    input next_state,
+    input switches[16],
+    input alufn[6],
+    input togglestates,
+    output indicator[16],
+    output statecheck[2]
+  ) {
+
+  alu alu;
+  //sig cases[2][3][16];
+  //sig autoalufn[6];
+
+  .clk(clk), .rst(rst) {
+    dff clock[27];
+    dff autoinputa[16];
+    dff autoinputb[16];
+    
+    //for manual tester states
+    fsm tester = {IDLE, INPUTAVAL, INPUTBVAL, RESULT};
+    
+    //for auto test cases
+    //fsm testcasecycle = {
+    //ADD cases,
+    //SUB cases,
+    //MUL cases,
+    //Bool cases,
+    //Shift cases,
+    //Rotate cases,
+    //Compare cases,
+    //done state,
+    //error states}
+    fsm testcasecycle = {
+    ADD1, ADD2, ADD3, ADD4, ADD5,
+    SUB1, SUB2, SUB3, SUB4, SUB5, SUB6,
+    MUL1, MUL2, MUL3, MUL4, MUL5, MUL6, MUL7, MUL8,
+    AND, OR, XOR, A,
+    SHL, SHR, SRA1, SRA2,
+    RL, RR,
+    CMPEQ1, CMPEQ2, CMPEQ3,
+    CMPLT1, CMPLT2, CMPLT3,
+    CMPLE1, CMPLE2, CMPLE3,
+    DONE,
+    ERRORADDER, ERRORMULT, ERRORBOOL, ERRORSHIFT, ERRORROT, ERRORCOMP};
+  }
+
+  always {
+    //initialize
+    alu.a = 0;
+    alu.b = 0;
+    alu.alufn = 0;
+    indicator = 0;
+    statecheck = 0;
+    clock.d = clock.q + 1;
+
+    if (togglestates) {
+
+      case (clock.q[26:25]) { //when the clock changes
+
+        b00:
+
+          indicator = autoinputa.q; //display auto input A
+
+        b01:
+
+          indicator = autoinputb.q; //display auto input B
+
+        default:
+
+          indicator = alu.alu; //display result
+        }
+
+      case (testcasecycle.q) {
+
+        testcasecycle.ADD1: //first add case
+
+          alu.alufn = 6b000000; //add (+)+(+)
+          autoinputa.d = 16h1212; //auto input a
+          autoinputb.d = 16h6033; //auto input b
+          alu.a = autoinputa.q; //pass a and b to allow alu to do calculations
+          alu.b = autoinputb.q;
+
+          if (next_state) { //if next state button is pressed,
+
+            if (alu.alu == 16h7245) {  // (4626) + (24627) = (29253) //check if result from alu is correct
+              clock.d = 26x{0};
+              testcasecycle.d = testcasecycle.ADD2; //if it it correct, move to next test case which is add2
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER; //if it is wrong, go to error state for adder
+
+              }
+
+            }
+
+        testcasecycle.ADD2: //2nd add case
+
+          alu.alufn = 6b000000; // add (-) + (-)
+          autoinputa.d = 16hffff;
+          autoinputb.d = 16hffff;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16hfffe) {  // (-1) + (-1) = (-2)
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.ADD3;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+
+        testcasecycle.ADD3:
+
+          alu.alufn = 6b000000; //add (+) + (-) > 0
+          autoinputa.d = 16h0002;
+          autoinputb.d = 16hffff;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0001) {  // (2) + (-1) = (1)
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.ADD4;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+
+        testcasecycle.ADD4:
+
+          alu.alufn = 6b000000;// add (+) + (-)  <0
+          autoinputa.d = 16h9999;
+          autoinputb.d = 16h1111;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16haaaa) {  // (-26215) + (4369) = -21846
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.ADD5;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+        testcasecycle.ADD5:
+
+          alu.alufn = 6b000000; //add overflow case
+          autoinputa.d = 16hefa7;
+          autoinputb.d = 16habb3;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h9b5a) {  // (-4185) + (-21581) = -25766
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SUB1;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+
+
+        testcasecycle.SUB1:
+
+          alu.alufn = 6b000001; //sub (+) - (+) A>B
+          autoinputa.d = 16h4444;
+          autoinputb.d = 16h1111;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h3333) {  // (17476)-(4369) = 13107
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SUB2;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+
+        testcasecycle.SUB2:
+
+          alu.alufn = 6b000001; //sub (+) - (+)  A<B
+          autoinputa.d = 16h0123;
+          autoinputb.d = 16h1111;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16hf012) {  // (291) - (4369) = -4078
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SUB3;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+
+        testcasecycle.SUB3:
+
+          alu.alufn = 6b000001; //sub (-) - (-)
+          autoinputa.d = 16hbeea;
+          autoinputb.d = 16habbf;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h132b) {  // (-16662) - (-21569) = 4907
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SUB4;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+
+        testcasecycle.SUB4:
+
+          alu.alufn = 6b000001; //sub (-) - (+)
+          autoinputa.d = 16hffac;
+          autoinputb.d = 16h4056;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16hbf56) {  // (-84) - (16470) = -16554
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SUB5;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+        testcasecycle.SUB5: //sub (+) - (-)
+
+          alu.alufn = 6b000001;
+          autoinputa.d = 16h5c0f;
+          autoinputb.d = 16hab72;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16hb09d) {  // (23567) - (-21646) = 45213
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SUB6;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+        testcasecycle.SUB6: //sub (+) - (-) overflow case
+
+          alu.alufn = 6b000001;
+          autoinputa.d = 16h9858;
+          autoinputb.d = 16h8ad0;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0d88) {  // (39000) - (-30000) = supposed to be 69000 (but 3464)
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.MUL1;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORADDER;
+
+              }
+
+            }
+        testcasecycle.ERRORADDER: //error state for adder
+
+          indicator = 16x{1}; //if error for adder, show 1111 1111 1111 1111
+
+          testcasecycle.d = testcasecycle.ERRORADDER;
+
+        testcasecycle.MUL1:
+
+          alu.alufn = 6b000010; //MULT (+) * (+)
+          autoinputa.d = 16h0002;
+          autoinputb.d = 16h2a1b;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h5436) {  // 2 * 10779 = 21558
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.MUL2;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORMULT;
+
+              }
+
+            }
+
+        testcasecycle.MUL2: //MULT (+) * (+) = (-)(overflow)
+
+          alu.alufn = 6b000010;
+          autoinputa.d = 16h2700;
+          autoinputb.d = 16h5612;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16hbe00) {  // (9984)*(22034) = (-16896) overflow so this is the value
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.MUL3;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORMULT;
+
+              }
+
+            }
+
+        testcasecycle.MUL3:
+
+          alu.alufn = 6b000010; //MULT (+) * (-) = (-)
+          autoinputa.d = 16h0002;
+          autoinputb.d = 16hffff;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16hfffe) {  // 2 * (-1) = -1
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.MUL4;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORMULT;
+
+              }
+
+            }
+
+        testcasecycle.MUL4:
+
+          alu.alufn = 6b000010; //MULT (+) * (-) = (-) overflow
+          autoinputa.d = 16h0013;
+          autoinputb.d = 16h9abe;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h7c1a) {  // (19)*(-25922)= 31770
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.MUL5;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORMULT;
+
+              }
+
+            }
+        testcasecycle.MUL5:
+
+          alu.alufn = 6b000010; //MULT (-)*(-) = (+)
+          autoinputa.d = 16hffff;
+          autoinputb.d = 16hffee;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0012) {  // -1 * -18  = 18
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.MUL6;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORMULT;
+
+              }
+
+            }
+        testcasecycle.MUL6:
+
+          alu.alufn = 6b000010; //MULT (-)*(-)= (+) overflow
+          autoinputa.d = 16hab2a;
+          autoinputb.d = 16hbc12;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16he0f4) {  //(-21718)*(-17390)= (-7948)
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.AND;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORMULT;
+
+              }
+
+            }
+        testcasecycle.ERRORMULT:
+
+          indicator = c{15x{1},0};
+
+          testcasecycle.d = testcasecycle.ERRORMULT;
+
+
+
+        testcasecycle.AND: //Bool AND check A and B for each bit
+
+          alu.alufn = 6b011000;
+          autoinputa.d = 16h00ff; //0000 0000 1111 1111
+          autoinputb.d = 16h5555; //0101 0101 0101 0101
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0055) {  // output = 0000 0000 0101 0101
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.OR;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORBOOL;
+
+              }
+
+            }
+
+        testcasecycle.OR: //Bool OR check A and B for each bit
+
+          alu.alufn = 6b011110;
+          autoinputa.d = 16h00ff; //0000 0000 1111 1111
+          autoinputb.d = 16h5555; //0101 0101 0101 0101
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h55ff) {  // output = 0101 0101 1111 1111
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.XOR;} else {
+
+              testcasecycle.d = testcasecycle.ERRORBOOL;
+
+              }
+
+            }
+
+        testcasecycle.XOR: //Bool XOR check A and B for each bit
+
+          alu.alufn = 6b010110;
+          autoinputa.d = 16h00ff; //0000 0000 1111 1111
+          autoinputb.d = 16h5555; //0101 0101 0101 0101
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h55aa) {  //output = 0101 0101 1010 1010
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.A;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORBOOL;
+
+              }
+
+            }
+
+        testcasecycle.A: //Bool "A" check A and B for each bit
+
+          alu.alufn = 6b011010;
+          autoinputa.d = 16h00ff; //0000 0000 1111 1111
+          autoinputb.d = 16h5555; //0101 0101 0101 0101
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h00ff) {  //output = 0000 0000 1111 1111
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SHL;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORBOOL;
+
+              }
+
+            }
+        testcasecycle.ERRORBOOL:
+
+          indicator = c{14x{1},0,1};
+
+          testcasecycle.d = testcasecycle.ERRORBOOL;
+
+        testcasecycle.SHL:
+
+          alu.alufn = 6b100000; //shift left by 2 bits
+          autoinputa.d = 16h4433; //input bits
+          autoinputb.d = 16h0002; //shift by 2
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h10cc) {  // 0100 0100 0011 0011 shift left by 2 = 0001 0000 1100 1100
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SHR;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORSHIFT;
+
+              }
+
+            }
+        testcasecycle.SHR:
+
+          alu.alufn = 6b100001; //shift right by 2
+          autoinputa.d = 16h4433; //input bits
+          autoinputb.d = 16h0002; //shift by 2
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h110c) {  // 0100 0100 0011 0011 shift right by 2 = 0001 0001 0000 1100
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SRA1;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORSHIFT;
+
+              }
+
+            }
+        testcasecycle.SRA1:
+
+          alu.alufn = 6b100011; //shift right signed by 2 (MSB is 1)
+          autoinputa.d = 16ha000; //input bit
+          autoinputb.d = 16h0002; //shift by 2
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16he800) {  // 1010 0000 0000 0000 shift right by 2 signed = 1110 1000 0000 0000
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.SRA2;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORSHIFT;
+
+              }
+
+            }
+        testcasecycle.SRA2:
+
+          alu.alufn = 6b100011; //shift right signed by 2 (MSB is 0)
+          autoinputa.d = 16h2000; //input bit
+          autoinputb.d = 16h0002; //shift by 2
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0800) {  // 0010 0000 0000 0000 shift right by 2 signed = 0000 1000 0000 0000
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.RL;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORSHIFT;
+
+              }
+
+            }
+        testcasecycle.ERRORSHIFT:
+
+          indicator = c{13x{1},0,2x{1}};
+
+          testcasecycle.d =testcasecycle.ERRORSHIFT;
+
+
+        testcasecycle.RL:
+
+          alu.alufn = 6b100100; //rotate left
+          autoinputa.d = 16h4af8;//input bit to rotate
+          autoinputb.d = 16h0003;//rotate by 3 bits
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h57c2) {  // 0100 1010 1111 1000 rotate left by 3 bits = 0101 0111 1100 0010
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.RR;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORROT;
+
+              }
+
+            }
+        testcasecycle.RR:
+
+          alu.alufn = 6b100101; //rotate right
+          autoinputa.d = 16h1aa7;//input bit to rotate
+          autoinputb.d = 16h0003;//rotate by 3 bits
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16he354) {  // 0001 1010 1010 0111 rotate right by 3 = 1110 0011 0101 0100
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPEQ1;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORROT;
+
+              }
+
+            }
+        testcasecycle.ERRORROT:
+
+          indicator = c{12x{1},0,3x{1}};
+
+          testcasecycle.d = testcasecycle.ERRORROT;
+
+        testcasecycle.CMPEQ1: //compare equal, when A=B
+
+          alu.alufn = 6b110011;
+          autoinputa.d = 16h0001;
+          autoinputb.d = 16h0001;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0001) {  // compare if A=B, return 1
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPEQ2;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPEQ2: //compare equal, when A>B
+
+          alu.alufn = 6b110011;
+          autoinputa.d = 16h0002;
+          autoinputb.d = 16h0001;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0000) {  // returns 0 since A!=B
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPEQ3;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPEQ3: //compare equal, when A<B
+
+          alu.alufn = 6b110011;
+          autoinputa.d = 16h0001;
+          autoinputb.d = 16h0002;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0000) {  // return 0 since A!=B
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPLT1;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPLT1: //compare less than, when A=B
+
+          alu.alufn = 6b110101;
+          autoinputa.d = 16h0001;
+          autoinputb.d = 16h0001;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0000) {  // returns 0 since A=B
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPLT2;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPLT2: //compare less than, when A>B
+
+          alu.alufn = 6b110101;
+          autoinputa.d = 16h0002;
+          autoinputb.d = 16h0001;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0000) {  // returns 0, since A>B
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPLT3;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPLT3: //compare less than, A<B
+
+          alu.alufn = 6b110101;
+          autoinputa.d = 16h0001;
+          autoinputb.d = 16h0002;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0001) {  // returns 1, since A<B is true
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPLE1;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPLE1: //compare less than equal to, A=B
+
+          alu.alufn = 6b110111;
+          autoinputa.d = 16h0001;
+          autoinputb.d = 16h0001;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0001) {  // returns 1, since A=B
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPLE2;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPLE2: //compare less than equal to, A>B
+
+          alu.alufn = 6b110111;
+          autoinputa.d = 16h0002;
+          autoinputb.d = 16h0001;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0000) {  // returns 0, since A>B
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.CMPLE3;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.CMPLE3: //compare less than equal to A<B
+
+          alu.alufn = 6b110111;
+          autoinputa.d = 16h0001;
+          autoinputb.d = 16h0002;
+          alu.a = autoinputa.q;
+          alu.b = autoinputb.q;
+
+          if (next_state) {
+
+            if (alu.alu == 16h0001) {  // returns 1, since A<B
+              clock.d = 16x{0};
+              testcasecycle.d = testcasecycle.DONE;
+
+              } else {
+
+              testcasecycle.d = testcasecycle.ERRORCOMP;
+
+              }
+
+            }
+        testcasecycle.ERRORCOMP:
+
+          indicator = c{11x{1},0,4x{1}};
+
+          testcasecycle.d = testcasecycle.ERRORCOMP;
+
+        testcasecycle.DONE:
+
+          indicator = c{8x{1}, 8x{0}};
+
+          testcasecycle.d = testcasecycle.DONE;
+
+
+
+
+
+        }
+
+      } else { //if not in auto state not triggered, manual state!
+
+      case (tester.q) { //idle state
+
+      tester.IDLE:
+
+        statecheck = b00;
+
+        if (next_state) { //if trigger button is pressed, go to state input a
+
+          tester.d = tester.INPUTAVAL;
+
+          }
+
+      tester.INPUTAVAL: //state to input A,
+
+        statecheck = b01; //led to show which state u are at
+        indicator = switches; //the bit input of A from mojo
+
+        if (next_state) {
+
+          autoinputa.d = switches; //pass input of A to mojo
+          tester.d = tester.INPUTBVAL; //go to state input B
+
+          }
+
+      tester.INPUTBVAL:
+
+        statecheck = b10;
+        indicator = switches;
+
+        if (next_state) {
+
+          autoinputb.d = switches;
+          tester.d = tester.RESULT;
+
+          }
+
+
+      tester.RESULT: //once A and B are inputted, calculate RESULT based on OPCODE from alufn
+
+        statecheck = b11; //light indicator on mojo to signify result
+        alu.a = autoinputa.q; //a input
+        alu.b = autoinputb.q; //b input
+        alu.alufn = alufn; //opcode
+        indicator = alu.alu; //calculated result from A B and OPCODE
+
+        if (next_state) {
+
+          tester.d = tester.IDLE; //go back to idle state to prepare for next inputs
+
+          }
+
+      }
+
+      }
+  }
+}
